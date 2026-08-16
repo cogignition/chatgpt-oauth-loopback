@@ -289,7 +289,7 @@ def handle(msg: dict) -> dict | None:
             "result": {
                 "protocolVersion": version,
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "chatgpt-oauth", "version": "0.3.0"},
+                "serverInfo": {"name": "chatgpt-oauth", "version": "0.1.0"},
             },
         }
     if isinstance(method, str) and method.startswith("notifications/"):

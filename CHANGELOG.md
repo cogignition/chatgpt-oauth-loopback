@@ -5,9 +5,27 @@ All notable changes to this project are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning: `MAJOR.MINOR.PATCH` in `.grok-plugin/plugin.json`. Tags: `vMAJOR.MINOR.PATCH`.
 
-Park notes under `[Unreleased]`. `just release` requires `## [X.Y.Z] - YYYY-MM-DD`.
+Park notes under `[Unreleased]`. A release requires `## [X.Y.Z] - YYYY-MM-DD` then `python3 scripts/check-version --release && grok plugin tag .`.
 
 ## [Unreleased]
+
+## [0.3.0] - 2026-08-16
+
+### Added
+
+- Shipped child agent `openai-auth` (medium). Extra efforts in `examples/agents/` (not installed)
+- Skill `chatgpt-oauth` documents spawn; it is not the child type
+- `python3 loopback.py --stop` (kill our listener only)
+
+### Changed
+
+- Loopback honors requested reasoning effort instead of forcing `high` (still defaults to high)
+- Upstream model stays `gpt-5.6-luna` on every request
+
+### Removed
+
+- Auto-installed `openai-fast` / `openai-researcher` / `openai-implementer` (now examples)
+- `justfile`. Drive `loopback.py` and `grok` directly.
 
 ## [0.2.0] - 2026-08-16
 

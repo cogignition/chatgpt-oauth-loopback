@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Loopback ChatGPT OAuth adapter for Grok luna children (HUB-161 / HUB-172).
+"""Loopback ChatGPT OAuth adapter for Grok luna children.
 
-  just check
-  just self-test
-  just daemon            # detach HTTP singleton; not a TUI command
-  just plugin-install    # grok plugin install; MCP is .mcp.json + bin/run-mcp
+  python3 loopback.py --check
+  python3 loopback.py --self-test
+  python3 loopback.py --daemon   # detach HTTP singleton
+  python3 loopback.py --stop     # kill our listener only
+  grok plugin install . --trust  # MCP is .mcp.json + bin/run-mcp
 
 :8743 is a host singleton. MCP stdio is per session. Do not talk to api.openai.com.
 """
@@ -308,16 +309,38 @@ def rewrite_sse_block(raw: bytes, collector: OutputCollector) -> bytes:
     return format_sse(ev, json.dumps(payload, separators=(",", ":"), ensure_ascii=False))
 
 
+EFFORTS = frozenset({"none", "minimal", "low", "medium", "high", "xhigh", "max"})
+
+
+def normalize_effort(raw: object) -> str:
+    """Honor Grok's requested effort. Default high if missing or unknown."""
+    if isinstance(raw, str) and raw.lower() in EFFORTS:
+        return raw.lower()
+    return "high"
+
+
+def requested_effort(body: dict) -> object:
+    reasoning = body.get("reasoning")
+    if isinstance(reasoning, dict) and "effort" in reasoning:
+        return reasoning.get("effort")
+    for key in ("reasoning_effort", "effort"):
+        if key in body:
+            return body.get(key)
+    return None
+
+
 def transform(body: dict) -> dict:
     out = dict(body)
     out["model"] = "gpt-5.6-luna"
     out["store"] = False
     out["stream"] = True
     out.pop("service_tier", None)
+    out.pop("reasoning_effort", None)
+    out.pop("effort", None)
     reasoning = out.get("reasoning")
     if not isinstance(reasoning, dict):
         reasoning = {}
-    reasoning["effort"] = "high"
+    reasoning["effort"] = normalize_effort(requested_effort(body))
     reasoning["mode"] = "standard"
     # Responses API: summary surfaces thinking so the TUI can show it.
     reasoning["summary"] = "auto"
@@ -862,7 +885,7 @@ def mcp_handle(message: dict, port: int) -> dict | None:
             {
                 "protocolVersion": version,
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "openai-loopback", "version": "0.2.0"},
+                "serverInfo": {"name": "openai-loopback", "version": "0.3.0"},
             },
         )
     if method == "notifications/initialized" or method.startswith("notifications/"):
@@ -950,6 +973,28 @@ def run_mcp(port: int) -> int:
     return 0
 
 
+def run_stop(port: int) -> int:
+    """Kill our listener on port. Leave foreign processes alone."""
+    pids = pids_on_port(port)
+    if not pids:
+        print(f"nothing on :{port}")
+        return 0
+    stopped = 0
+    for pid in pids:
+        if is_ours(pid):
+            print(f"stop {pid}", file=sys.stderr)
+            stop_pid(pid)
+            stopped += 1
+        else:
+            print(f"leave {pid} ({pid_command(pid)})", file=sys.stderr)
+    leftover = [pid for pid in pids_on_port(port) if is_ours(pid)]
+    if leftover:
+        die(f"port {port} still held by {', '.join(str(pid) for pid in leftover)}")
+    if stopped:
+        clear_pidfile()
+    return 0
+
+
 def run_daemon(port: int) -> int:
     if not http_healthy(port):
         with open(state_lock_path(), "a+", encoding="utf-8") as lock:
@@ -1024,6 +1069,19 @@ def run_self_test() -> int:
     got_nd, frame_nd = mcp_read(nd)
     if got_nd != msg or frame_nd != "ndjson":
         die(f"self-test: ndjson read {got_nd!r} {frame_nd}")
+
+    forced = transform({"input": [], "reasoning": {"effort": "low"}})
+    if forced["model"] != "gpt-5.6-luna":
+        die(f"self-test: transform must send gpt-5.6-luna, got {forced['model']!r}")
+    if forced["reasoning"]["effort"] != "low":
+        die(f"self-test: transform must keep effort=low, got {forced['reasoning']!r}")
+    defaulted = transform({"input": []})
+    if defaulted["reasoning"]["effort"] != "high":
+        die(f"self-test: missing effort must default high, got {defaulted['reasoning']!r}")
+    from_top = transform({"input": [], "reasoning_effort": "xhigh"})
+    if from_top["reasoning"]["effort"] != "xhigh":
+        die(f"self-test: top-level reasoning_effort ignored, got {from_top['reasoning']!r}")
+
     print("self-test: ok")
     return 0
 
@@ -1035,6 +1093,7 @@ def main() -> int:
     parser.add_argument("--mcp", action="store_true", help="MCP stdio + ensure HTTP singleton (plugin)")
     parser.add_argument("--http", action="store_true", help="foreground HTTP only (spawned by --mcp/--daemon)")
     parser.add_argument("--daemon", action="store_true", help="detach HTTP singleton and exit")
+    parser.add_argument("--stop", action="store_true", help="kill our HTTP listener only")
     parser.add_argument("--port", type=int, default=None)
     args = parser.parse_args()
     if args.port is not None and not 1 <= args.port <= 65535:
@@ -1052,6 +1111,8 @@ def main() -> int:
         return serve(port, replace=False)
     if args.daemon:
         return run_daemon(port)
+    if args.stop:
+        return run_stop(port)
     return serve(port, replace=True)
 
 

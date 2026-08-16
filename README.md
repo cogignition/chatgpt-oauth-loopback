@@ -4,7 +4,7 @@ A Grok plugin that lets **Grok orchestrate ChatGPT OAuth children**.
 
 The parent stays Grok. The child is `gpt-5.6-luna`, authenticated as a ChatGPT subscriber, not as an OpenAI platform customer. There is no `OPENAI_API_KEY`. There is no call to `api.openai.com`.
 
-If ChatGPT OAuth is missing, this project **tells you to log in**. It will not steal the MCP stdio pipe to run `codex login`. You run that in a terminal: `just login`.
+If ChatGPT OAuth is missing, this project **tells you to log in**. It will not steal the MCP stdio pipe to run `codex login`. You run that in a terminal: `codex login`.
 
 Tracked as [HUB-186](https://linear.app/hublar/issue/HUB-186/align-chatgpt-oauth-loopback-with-grok-plugin-standards-praxis).
 
@@ -28,17 +28,17 @@ This loopback reuses `codex login` (ChatGPT). Grok’s custom-model client talks
   /mcps  plugin: chatgpt-oauth
 ```
 
-`just` is the catalog. Do not invent a second execution surface.
+Drive `python3 loopback.py` and `grok`. There is no `just` catalog.
 
 ## Agent opinions
 
 Canonical text is `skills/chatgpt-oauth/SKILL.md` (also `AGENTS.md` in this checkout). Agents should load that skill when spawning luna children.
 
 1. **Orchestrate here.** Planning, review, merge, and praxis stay on the Grok parent. Luna is a child identity, not a second orchestrator.
-2. **Route by type, not by spawn `model`.** `subagent_type = "openai-oauth"` (or the user's `openai-researcher` / `openai-implementer` roles). Current TUIs reject `model=openai-codex` on `spawn_subagent`.
+2. **Route to luna.** Spawn `openai-auth`, or `general-purpose` with `model=openai-codex`. Wire model is `gpt-5.6-luna`.
 3. **Trust the child's self-report.** It must say `gpt-5.6-luna`. If it says `grok-4.x`, the route failed.
-4. **Login is a human TTY.** `just login`. MCP `login` only prints the instruction.
-5. **One host light.** `:8743` is a singleton. `just daemon` on. Last MCP holder out off.
+4. **Login is a human TTY.** `codex login`. MCP `login` only prints the instruction.
+5. **One host light.** `:8743` is a singleton. `python3 loopback.py --daemon` on. `--stop` or last holder out off.
 
 ## What it is not
 
@@ -56,22 +56,17 @@ Canonical text is `skills/chatgpt-oauth/SKILL.md` (also `AGENTS.md` in this chec
 - Grok Build TUI
 - Codex CLI (`codex` on `PATH`)
 - Python 3 (stdlib only; no npm)
-- `just` (optional but this is how you drive it)
-
 ## First run
 
 ```bash
 git clone https://github.com/cogignition/chatgpt-oauth-loopback.git
 cd chatgpt-oauth-loopback
-just                 # catalog
-just login           # Codex CLI; choose ChatGPT, not API key
-just check           # must print "chatgpt"; exit 1 if refused
-just daemon          # detach :8743
-just plugin-install  # grok plugin install . --trust
-just status
+codex login                      # choose ChatGPT, not API key
+python3 loopback.py --check      # must print "chatgpt"; exit 1 if refused
+python3 loopback.py --daemon     # detach :8743
+grok plugin install . --trust
+grok plugin enable chatgpt-oauth
 ```
-
-Or, equivalently: `grok plugin install . --trust` then `grok plugin enable chatgpt-oauth`.
 
 In `~/.grok/config.toml` you still need the **custom model** (plugins cannot ship `[model.*]`) and the plugin enabled. **Do not** add `[mcp_servers.chatgpt-oauth]` — the plugin `.mcp.json` owns that server.
 
@@ -91,7 +86,7 @@ enabled = ["chatgpt-oauth"]
 enabled = true
 
 [subagents.models]
-openai-oauth = "openai-codex"
+openai-auth = "openai-codex"
 ```
 
 Restart Grok after adding `[model.openai-codex]`. Confirm `grok models` lists `openai-codex`. In `/mcps`, expect **plugin** `chatgpt-oauth`, not a Local duplicate.
@@ -100,24 +95,16 @@ Restart Grok after adding `[model.openai-codex]`. Confirm `grok models` lists `o
 
 Grok does not take `model = "openai-codex"` on `spawn_subagent` in current TUIs (only `grok-4.5` / `grok-4.6`). Route by **agent type**.
 
-The plugin ships `agents/openai-oauth.md`. After install, spawn:
+The plugin ships **one** child: `agents/openai-auth.md`. The skill `chatgpt-oauth` is parent guidance, not a second child type.
 
 ```
-subagent_type = "openai-oauth"
+subagent_type = "openai-auth"
 capability_mode = "read-only"
 ```
 
-If this TUI only lists the qualified form, use `chatgpt-oauth:openai-oauth`. The type plus `[subagents.models]` is the route.
+If this TUI only lists the qualified form, use `chatgpt-oauth:openai-auth`. If the type enum is only built-ins, spawn `general-purpose` with `model=openai-codex`.
 
-Optional user roles (not shipped; live in `~/.grok/config.toml` for praxis researcher/implementer):
-
-```toml
-[subagents.roles.openai-oauth]
-description = "ChatGPT OAuth child via loopback"
-default_capability_mode = "read-only"
-model = "openai-codex"
-reasoning_effort = "high"
-```
+Fast / researcher / implementer are **examples** (`examples/agents/`). Copy into `agents/` or `~/.grok/agents/` to register. Do not expect plugin install to add a squad.
 
 The child must report `gpt-5.6-luna`. If it reports `grok-4.x`, the route failed (live config missing `[model.openai-codex]`, or this TUI session started before that block existed).
 
@@ -128,36 +115,32 @@ High-effort luna keeps going unless the prompt says: one final message, then sto
 `isolation=worktree` is a request, not a fact. Only call it isolated when `child_cwd` differs from the parent. `read-only` also strips shell; if the child needs `git status` or `just --list`, do not use `capability_mode=read-only`.
 
 ```bash
-just daemon
-just check          # auth=chatgpt
-# spawn openai-oauth with a three-line identity prompt
+python3 loopback.py --daemon
+python3 loopback.py --check   # auth=chatgpt
+# spawn openai-auth with a three-line identity prompt
 ```
 
 Expect one turn, zero tools, then stop. Catalog slug stays `openai-codex`. Upstream is luna.
 
-## `just` verbs
+## Commands
 
-| Verb | What it does |
+| Command | What it does |
 |---|---|
-| `just` | Catalog |
-| `just login` | Interactive `codex login` (your TTY) |
-| `just check` | Auth JSON; exit 1 if missing or API key |
-| `just daemon` | One HTTP listener on `127.0.0.1:8743` |
-| `just health` | `GET /health` |
-| `just stop` | Kill **our** listener only |
-| `just self-test` | Canned SSE / holder checks; no network |
-| `just plugin-install` | `grok plugin install . --trust` |
-| `just plugin-uninstall` | `grok plugin uninstall chatgpt-oauth` |
-| `just version-check` | Semver homes + CHANGELOG exists |
-| `just hooks-install` | `core.hooksPath=hooks` |
-| `just release` | `grok plugin tag` → `vMAJOR.MINOR.PATCH` (no push) |
-| `just status` | Auth + plugin list + HTTP |
+| `codex login` | Interactive ChatGPT OAuth (your TTY) |
+| `python3 loopback.py --check` | Auth JSON; exit 1 if missing or API key |
+| `python3 loopback.py --daemon` | One HTTP listener on `127.0.0.1:8743` |
+| `python3 loopback.py --stop` | Kill **our** listener only |
+| `python3 loopback.py --self-test` | Canned SSE / holder / transform checks |
+| `curl -sS -m 2 http://127.0.0.1:8743/health` | Listener health |
+| `grok plugin install . --trust` | Install this checkout |
+| `python3 scripts/check-version` | Semver homes + CHANGELOG |
+| `python3 scripts/check-version --release && grok plugin tag .` | Tag `vMAJOR.MINOR.PATCH` (no push) |
 
-`just login` is the only interactive verb. The MCP `login` tool only **prints** the same instruction. It does not exec `codex login`.
+The MCP `login` tool only **prints** the same instruction. It does not exec `codex login`.
 
 ## If OAuth is not initialized
 
-`just check`, `GET /health`, and MCP `health` / `login` return `auth` other than `chatgpt` and a `login` field:
+`python3 loopback.py --check`, `GET /health`, and MCP `health` / `login` return `auth` other than `chatgpt` and a `login` field:
 
 ```
 ChatGPT OAuth is not initialized. In a local terminal run:
@@ -178,7 +161,7 @@ Grok’s custom-model client uses the Responses API (`stream: true`, `store: fal
 
 Stdio MCP (Grok 1.0.4 / rmcp) is **one JSON line per message**. Replies match the request framing. The plugin `.mcp.json` starts `bin/run-mcp` (`bin/mcp_server.py`: `health`, `login`). `loopback.py --mcp` is debug-only and is not what the plugin launches.
 
-`/plugins` **r** reloads plugins. `/mcps` **r** reloads config. After `just plugin-install`, enable `chatgpt-oauth` if it is off.
+`/plugins` **r** reloads plugins. `/mcps` **r** reloads config. After `grok plugin install . --trust`, enable `chatgpt-oauth` if it is off.
 
 ## Many Grok sessions, one light
 
@@ -196,30 +179,30 @@ Stdio MCP (Grok 1.0.4 / rmcp) is **one JSON line per message**. Replies match th
 
 | Event | Lights |
 |---|---|
-| `just daemon` | On. Zero holders. Stays up so you can spawn before any TUI attaches. |
+| `--daemon` | On. Zero holders. Stays up so you can spawn before any TUI attaches. |
 | First Grok session MCP starts | Holder = 1. Attaches if already up; starts the listener if not. |
 | Second session | Holder = 2. Does **not** reclaim a healthy listener. |
 | Concurrent luna children | Fine. `ThreadingHTTPServer`. |
 | One session quits | Holder drops. Lights stay on if anyone remains. |
 | Last session quits | Holder = 0. **Lights out.** The HTTP process is killed. |
-| `just stop` | Lights out now, even if holders remain. |
-| `just daemon` after that | Lights on again, zero holders. |
+| `--stop` | Lights out now, even if holders remain. |
+| `--daemon` after that | Lights on again, zero holders. |
 
 Do not give each session its own port. Grok’s model config cannot follow it.
 
 Token refresh to `~/.codex/auth.json` is locked so two sessions do not clobber the file.
 
-If you open Grok, spawn luna, quit Grok, then `/health` is refused: that is last-out, not a crash. `just daemon` or the next session’s MCP turns the light back on.
+If you open Grok, spawn luna, quit Grok, then `/health` is refused: that is last-out, not a crash. `python3 loopback.py --daemon` or the next session’s MCP turns the light back on.
 
 ## Troubleshooting
 
 | Symptom | What to do |
 |---|---|
-| `just check` exit 1 | `just login`, choose ChatGPT |
-| `/health` connection refused | Last session quit (lights out) or never started. `just daemon` |
+| `--check` exit 1 | `codex login`, choose ChatGPT |
+| `/health` connection refused | Last session quit (lights out) or never started. `--daemon` |
 | Two TUIs, one dies, children fail | You gave them different ports. Don’t. One `:8743`. |
 | `/mcps` shows Local **and** plugin `chatgpt-oauth` | Remove `[mcp_servers.chatgpt-oauth]` from config.toml. Plugin owns MCP. |
-| Plugin missing from `grok plugin list` | `just plugin-install` (not a hand copy into `~/.grok/plugins/`) |
+| Plugin missing from `grok plugin list` | `grok plugin install . --trust` (not a hand copy into `~/.grok/plugins/`) |
 | Child reports then Grok retries | You are not running this adapter’s completed.output fill |
 | Child is grok-4.x | `[model.openai-codex]` missing or Grok not restarted after adding it |
 
@@ -228,14 +211,14 @@ If you open Grok, spawn luna, quit Grok, then `/health` is refused: that is last
 ```
 chatgpt-oauth-loopback/
   AGENTS.md                 checkout rules + opinions pointer
-  justfile                  operator catalog
   loopback.py               HTTP singleton :8743
   bin/mcp_server.py         stdio MCP (health, login)
   bin/run-mcp               exec the MCP server
   .grok-plugin/plugin.json  Grok manifest (semver home)
   .mcp.json                 plugin MCP (${CLAUDE_PLUGIN_ROOT})
-  agents/openai-oauth.md
-  skills/chatgpt-oauth/     agent opinions
+  agents/openai-auth.md     shipped child (medium)
+  examples/agents/          extra efforts, not installed
+  skills/chatgpt-oauth/     parent spawn guidance
   CHANGELOG.md              Keep a Changelog
   scripts/check-version     semver homes + changelog + tag floor
   hooks/                    pre-commit / pre-push / commit-msg

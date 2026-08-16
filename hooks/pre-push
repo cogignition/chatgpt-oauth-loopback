@@ -13,7 +13,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
       tag="${remote_ref#refs/tags/}"
       if [ "${tag}" != "${expected}" ]; then
         echo "check-version: refuse tag ${tag}; manifest is ${home} so tag must be ${expected}" >&2
-        echo "create it with: just release" >&2
+        echo "create it with: python3 scripts/check-version --release && grok plugin tag ." >&2
         exit 1
       fi
       if [ "${local_sha}" = "0000000000000000000000000000000000000000" ]; then

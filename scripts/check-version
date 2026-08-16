@@ -3,7 +3,7 @@
 
 Home: .grok-plugin/plugin.json  version
 A file version with no matching tag is unreleased, not a release (HUB-179).
-CHANGELOG.md must exist. just release requires ## [X.Y.Z] - YYYY-MM-DD.
+CHANGELOG.md must exist. A release requires ## [X.Y.Z] - YYYY-MM-DD.
 """
 from __future__ import annotations
 
@@ -98,7 +98,7 @@ def require_changelog(home: str, *, release: bool) -> None:
         date = match.group(2)
         if date and date.lower() != "unreleased":
             return
-    die(f"CHANGELOG.md missing ## [{home}] - YYYY-MM-DD before just release")
+    die(f"CHANGELOG.md missing ## [{home}] - YYYY-MM-DD before grok plugin tag")
 
 
 def main() -> int:
@@ -136,9 +136,9 @@ def main() -> int:
     if tagged == home:
         print(f"version {home} (tagged v{home})")
     elif tagged is None:
-        print(f"version {home} (no tags; unreleased until just release)")
+        print(f"version {home} (no tags; unreleased until grok plugin tag)")
     else:
-        print(f"version {home} (ahead of v{tagged}; unreleased until just release)")
+        print(f"version {home} (ahead of v{tagged}; unreleased until grok plugin tag)")
     return 0
 
 

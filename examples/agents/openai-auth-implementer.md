@@ -5,7 +5,7 @@ description: >
   Copy to the plugin agents/ or ~/.grok/agents/ to register.
   Loopback must be up. Check chatgpt-oauth health first.
 prompt_mode: full
-model: openai-codex
+model: luna
 effort: xhigh
 permission_mode: default
 agents_md: true

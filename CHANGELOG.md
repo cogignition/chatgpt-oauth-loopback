@@ -9,6 +9,12 @@ Park notes under `[Unreleased]`. A release requires `## [X.Y.Z] - YYYY-MM-DD` th
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-16
+
+### Changed
+
+- Catalog slug is `luna`, not `openai-codex`. `context_window = 272000` (Codex ChatGPT product window; API spec is 1.05M / 128k out)
+
 ## [0.3.0] - 2026-08-16
 
 ### Added

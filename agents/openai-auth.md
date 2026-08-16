@@ -4,7 +4,7 @@ description: >
   ChatGPT OAuth child via 127.0.0.1:8743 (gpt-5.6-luna), medium effort.
   Default luna route. Check chatgpt-oauth health first. Loopback must be up.
 prompt_mode: full
-model: openai-codex
+model: luna
 effort: medium
 permission_mode: default
 agents_md: false

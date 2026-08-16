@@ -5,7 +5,7 @@ description: >
   Copy to the plugin agents/ or ~/.grok/agents/ to register.
   Loopback must be up.
 prompt_mode: full
-model: openai-codex
+model: luna
 effort: low
 permission_mode: default
 agents_md: false

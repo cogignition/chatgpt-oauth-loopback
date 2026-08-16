@@ -885,7 +885,7 @@ def mcp_handle(message: dict, port: int) -> dict | None:
             {
                 "protocolVersion": version,
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "openai-loopback", "version": "0.3.0"},
+                "serverInfo": {"name": "openai-loopback", "version": "0.4.0"},
             },
         )
     if method == "notifications/initialized" or method.startswith("notifications/"):

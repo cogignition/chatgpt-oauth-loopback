@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Loopback ChatGPT OAuth adapter for Grok luna children (HUB-161 / HUB-172).
 
-  just grok-codex-adapter --check
-  just grok-codex-adapter --self-test
-  just grok-codex-adapter --daemon   # detach HTTP singleton; not a TUI command
-  just grok-plugins-install          # Grok plugin MCP owns --mcp
+  just check
+  just self-test
+  just daemon            # detach HTTP singleton; not a TUI command
+  just plugin-install    # grok plugin install; MCP is .mcp.json + bin/run-mcp
 
 :8743 is a host singleton. MCP stdio is per session. Do not talk to api.openai.com.
 """
@@ -862,7 +862,7 @@ def mcp_handle(message: dict, port: int) -> dict | None:
             {
                 "protocolVersion": version,
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "openai-loopback", "version": "0.1.0"},
+                "serverInfo": {"name": "openai-loopback", "version": "0.2.0"},
             },
         )
     if method == "notifications/initialized" or method.startswith("notifications/"):

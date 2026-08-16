@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Tags we push must be v + the manifest version. No leftover 0.3.0 (HUB-179).
+set -euo pipefail
+root="$(git rev-parse --show-toplevel)"
+python3 "${root}/scripts/check-version"
+
+home="$(python3 -c 'import json, pathlib; print(json.loads(pathlib.Path(".grok-plugin/plugin.json").read_text())["version"])')"
+expected="v${home}"
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "${remote_ref}" in
+    refs/tags/*)
+      tag="${remote_ref#refs/tags/}"
+      if [ "${tag}" != "${expected}" ]; then
+        echo "check-version: refuse tag ${tag}; manifest is ${home} so tag must be ${expected}" >&2
+        echo "create it with: just release" >&2
+        exit 1
+      fi
+      if [ "${local_sha}" = "0000000000000000000000000000000000000000" ]; then
+        continue
+      fi
+      ;;
+  esac
+done
+exit 0

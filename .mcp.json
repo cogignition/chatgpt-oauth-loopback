@@ -1,8 +1,7 @@
 {
   "mcpServers": {
     "chatgpt-oauth": {
-      "command": "python3",
-      "args": ["bin/run-mcp"],
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/run-mcp",
       "env": { "PYTHONUNBUFFERED": "1" }
     }
   }

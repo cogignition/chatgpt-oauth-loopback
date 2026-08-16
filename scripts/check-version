@@ -1,0 +1,146 @@
+#!/usr/bin/env python3
+"""One semver home. Mirrors must match. Tags are vMAJOR.MINOR.PATCH.
+
+Home: .grok-plugin/plugin.json  version
+A file version with no matching tag is unreleased, not a release (HUB-179).
+CHANGELOG.md must exist. just release requires ## [X.Y.Z] - YYYY-MM-DD.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parent.parent
+SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
+SERVER_INFO = re.compile(
+    r'"serverInfo":\s*\{[^}]*"version":\s*"([^"]+)"',
+    re.DOTALL,
+)
+UNRELEASED = re.compile(r"^## \[Unreleased\]\s*$", re.MULTILINE)
+HEADING = re.compile(r"^## \[([^\]]+)\](?:\s+-\s+(\S+))?\s*$", re.MULTILINE)
+
+
+def die(msg: str) -> None:
+    print(f"check-version: {msg}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def read_json_version(path: Path) -> str:
+    if not path.is_file():
+        die(f"missing {path.relative_to(ROOT)}")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        die(f"{path.relative_to(ROOT)}: {exc}")
+    version = data.get("version")
+    if not isinstance(version, str):
+        die(f"{path.relative_to(ROOT)}: version missing")
+    return version
+
+
+def read_server_info(path: Path) -> str:
+    if not path.is_file():
+        die(f"missing {path.relative_to(ROOT)}")
+    match = SERVER_INFO.search(path.read_text(encoding="utf-8"))
+    if not match:
+        die(f"{path.relative_to(ROOT)}: serverInfo.version missing")
+    return match.group(1)
+
+
+def parse(version: str, origin: str) -> tuple[int, int, int]:
+    if not SEMVER.fullmatch(version):
+        die(f"{origin}: {version!r} is not MAJOR.MINOR.PATCH (no leading v)")
+    major, minor, patch = version.split(".")
+    return int(major), int(minor), int(patch)
+
+
+def git(*args: str) -> str:
+    return subprocess.check_output(["git", *args], cwd=ROOT, text=True, stderr=subprocess.DEVNULL)
+
+
+def git_tags() -> list[str]:
+    try:
+        out = git("tag", "-l", "v*", "--sort=-v:refname")
+    except (OSError, subprocess.CalledProcessError):
+        return []
+    return [line.strip() for line in out.splitlines() if line.strip()]
+
+
+def latest_tag() -> str | None:
+    for tag in git_tags():
+        body = tag[1:] if tag.startswith("v") else ""
+        if SEMVER.fullmatch(body):
+            return body
+    return None
+
+
+def changelog_text() -> str:
+    path = ROOT / "CHANGELOG.md"
+    if not path.is_file():
+        die("missing CHANGELOG.md")
+    return path.read_text(encoding="utf-8")
+
+
+def require_changelog(home: str, *, release: bool) -> None:
+    text = changelog_text()
+    if not UNRELEASED.search(text):
+        die("CHANGELOG.md needs a ## [Unreleased] heading")
+    if not release:
+        return
+    for match in HEADING.finditer(text):
+        if match.group(1) != home:
+            continue
+        date = match.group(2)
+        if date and date.lower() != "unreleased":
+            return
+    die(f"CHANGELOG.md missing ## [{home}] - YYYY-MM-DD before just release")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--release",
+        action="store_true",
+        help="require ## [manifest version] dated before tagging",
+    )
+    args = parser.parse_args()
+
+    home_path = ROOT / ".grok-plugin" / "plugin.json"
+    home = read_json_version(home_path)
+    parse(home, ".grok-plugin/plugin.json")
+
+    mirrors: list[tuple[str, str]] = [
+        ("bin/mcp_server.py", read_server_info(ROOT / "bin" / "mcp_server.py")),
+        ("loopback.py", read_server_info(ROOT / "loopback.py")),
+    ]
+    root_plugin = ROOT / "plugin.json"
+    if root_plugin.is_file():
+        mirrors.append(("plugin.json", read_json_version(root_plugin)))
+
+    bad = [name for name, value in mirrors if value != home]
+    if bad:
+        shown = ", ".join(f"{name}={val}" for name, val in mirrors if name in set(bad))
+        die(f"version drift from {home}: {shown}")
+
+    tagged = latest_tag()
+    if tagged is not None and parse(home, "manifest") < parse(tagged, f"tag v{tagged}"):
+        die(f"manifest {home} is behind latest tag v{tagged}")
+
+    require_changelog(home, release=args.release)
+
+    if tagged == home:
+        print(f"version {home} (tagged v{home})")
+    elif tagged is None:
+        print(f"version {home} (no tags; unreleased until just release)")
+    else:
+        print(f"version {home} (ahead of v{tagged}; unreleased until just release)")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,10 @@
+{
+  "name": "chatgpt-oauth",
+  "version": "0.2.0",
+  "description": "ChatGPT OAuth loopback for Grok children (gpt-5.6-luna). Not a platform API key. Run `codex login` and choose ChatGPT.",
+  "author": { "name": "cogignition" },
+  "homepage": "https://github.com/cogignition/chatgpt-oauth-loopback",
+  "repository": "https://github.com/cogignition/chatgpt-oauth-loopback",
+  "license": "MIT",
+  "keywords": ["chatgpt", "oauth", "mcp", "loopback", "grok"]
+}

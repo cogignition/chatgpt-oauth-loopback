@@ -57,39 +57,59 @@ login:
     echo "Choose ChatGPT. Do not choose API key."
     exec codex login
 
-# Copy plugin files into ~/.grok/plugins/chatgpt-oauth (user, auto-trusted).
+# Official install: grok plugin install (trusted). Drops the old side-copy first.
 plugin-install:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    dest="{{ plugin_dest }}"
-    mkdir -p "${dest}/bin"
-    install -m 0755 bin/run-mcp "${dest}/bin/run-mcp"
-    install -m 0755 bin/mcp_server.py "${dest}/bin/mcp_server.py"
-    install -m 0644 plugin.json "${dest}/plugin.json"
-    python3 -c 'import json; from pathlib import Path; dest=Path("'"${dest}"'"); dest.joinpath(".mcp.json").write_text(json.dumps({"mcpServers":{"chatgpt-oauth":{"command": str(dest / "bin" / "run-mcp"), "env": {"PYTHONUNBUFFERED": "1"}}}}, indent=2)+"\n")'
-    echo "installed ${dest}"
-    echo "Grok config: [mcp_servers.chatgpt-oauth] and [plugins] enabled = [\"chatgpt-oauth\"]"
-    echo "Then /mcps r  (config refresh, not plugin r)"
-
-# Remove the installed user plugin.
-plugin-uninstall:
     #!/usr/bin/env bash
     set -euo pipefail
     dest="{{ plugin_dest }}"
     if [ -d "${dest}" ]; then
       rm -rf "${dest}"
-      echo "removed ${dest}"
+      echo "removed side-copy ${dest}"
+    fi
+    if grok plugin list --json 2>/dev/null | grep -q '"name": "chatgpt-oauth"'; then
+      grok plugin update chatgpt-oauth
     else
-      echo "not installed"
+      grok plugin install . --trust
+    fi
+    grok plugin enable chatgpt-oauth
+    echo "enable in ~/.grok/config.toml: [plugins] enabled = [\"chatgpt-oauth\"]"
+    echo "do not add [mcp_servers.chatgpt-oauth]; .mcp.json owns the server"
+
+# Official uninstall, plus any leftover side-copy.
+plugin-uninstall:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dest="{{ plugin_dest }}"
+    grok plugin uninstall chatgpt-oauth --confirm || true
+    if [ -d "${dest}" ]; then
+      rm -rf "${dest}"
+      echo "removed side-copy ${dest}"
     fi
 
-# Auth file, plugin dir, and :8743 in one shot.
+# One semver home (.grok-plugin/plugin.json). Mirrors must match.
+version-check:
+    python3 scripts/check-version
+
+# Point this clone at hooks/ (core.hooksPath). Needed once per clone.
+hooks-install:
+    git config core.hooksPath hooks
+    chmod +x hooks/pre-commit hooks/pre-push hooks/commit-msg scripts/check-version
+    git config --get core.hooksPath
+
+# Tag v + manifest version. Does not push. Tree must be clean.
+# Move CHANGELOG [Unreleased] to ## [X.Y.Z] - YYYY-MM-DD first.
+release:
+    python3 scripts/check-version --release
+    grok plugin tag .
+
+# Auth file, plugin install, and :8743 in one shot.
 status:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "auth:"
     {{ python }} loopback.py --check || true
     echo "plugin:"
-    if [ -d "{{ plugin_dest }}" ]; then echo "  {{ plugin_dest }}"; else echo "  not installed"; fi
+    grok plugin list 2>/dev/null | grep -E 'chatgpt-oauth' || echo "  not in grok plugin list"
+    if [ -d "{{ plugin_dest }}" ]; then echo "  leftover side-copy {{ plugin_dest }}"; fi
     echo "http:"
     if curl -sS -m 1 http://127.0.0.1:8743/health; then echo; else echo "  down"; fi

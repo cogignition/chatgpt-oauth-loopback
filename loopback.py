@@ -15,6 +15,7 @@ import argparse
 import fcntl
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -329,6 +330,29 @@ def requested_effort(body: dict) -> object:
     return None
 
 
+IDENTITY_FROM = re.compile(
+    r"You are Grok(?: \d+(?:\.\d+)*)?(?: released by xAI)?",
+    re.IGNORECASE,
+)
+IDENTITY_TO = (
+    "You are gpt-5.6-luna via ChatGPT OAuth on 127.0.0.1:8743, "
+    "using the Grok TUI harness"
+)
+
+
+def rewrite_identity(item: object, *, harness: bool = False) -> object:
+    """Rewrite only the Grok identity clause in system/developer text."""
+    if isinstance(item, str):
+        return IDENTITY_FROM.sub(IDENTITY_TO, item) if harness else item
+    if isinstance(item, list):
+        return [rewrite_identity(v, harness=harness) for v in item]
+    if isinstance(item, dict):
+        role = item.get("role")
+        next_harness = harness or role in ("system", "developer")
+        return {k: rewrite_identity(v, harness=next_harness) for k, v in item.items()}
+    return item
+
+
 def transform(body: dict) -> dict:
     out = dict(body)
     out["model"] = "gpt-5.6-luna"
@@ -352,7 +376,7 @@ def transform(body: dict) -> dict:
     raw_input = out.get("input")
     if isinstance(raw_input, list):
         kept = [item for item in raw_input if not (isinstance(item, dict) and item.get("type") == "item_reference")]
-        out["input"] = rewrite_roles(strip_ids(kept))
+        out["input"] = rewrite_identity(rewrite_roles(strip_ids(kept)))
     include = out.get("include")
     if not isinstance(include, list):
         include = []
@@ -889,7 +913,7 @@ def mcp_handle(message: dict, port: int) -> dict | None:
             {
                 "protocolVersion": version,
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "openai-loopback", "version": "0.4.1"},
+                "serverInfo": {"name": "openai-loopback", "version": "0.4.2"},
             },
         )
     if method == "notifications/initialized" or method.startswith("notifications/"):
@@ -1089,6 +1113,26 @@ def run_self_test() -> int:
     for key in ("max_output_tokens", "max_completion_tokens", "max_tokens"):
         if key in stripped:
             die(f"self-test: transform must drop {key}")
+    pinned = transform(
+        {
+            "input": [
+                {
+                    "type": "message",
+                    "role": "system",
+                    "content": "You are Grok 4.6 released by xAI. Use tools.",
+                },
+                {"type": "message", "role": "user", "content": "You are Grok 4.6?"},
+            ]
+        }
+    )
+    sys_msg, user_msg = pinned["input"]
+    if sys_msg.get("role") != "developer":
+        die(f"self-test: system should become developer, got {sys_msg!r}")
+    blob = json.dumps(sys_msg)
+    if "gpt-5.6-luna" not in blob or "Use tools." not in blob or "Grok 4.6" in blob:
+        die(f"self-test: identity rewrite failed, got {sys_msg!r}")
+    if "You are Grok 4.6?" not in json.dumps(user_msg):
+        die(f"self-test: must not rewrite user text, got {user_msg!r}")
 
     print("self-test: ok")
     return 0

@@ -6,7 +6,7 @@ Grok plugin. Parent stays Grok. Child is `gpt-5.6-luna` via ChatGPT OAuth on `12
 
 The plugin skill `skills/chatgpt-oauth/SKILL.md` is parent guidance. The shipped child type is `openai-auth`. They are not the same name.
 
-- Orchestrate on Grok. Luna is a child, not a second orchestrator.
+- The TUI product is Grok. Inference may still be `gpt-5.6-luna` when the catalog slug is `luna` (footer `272K`, session `current_model_id`). Do not treat a Grok-branded system prompt as proof the route failed.
 - Route via catalog `luna` (wire `gpt-5.6-luna`). Spawn `openai-auth` (medium). Fast / researcher / implementer are `examples/agents/` — not installed. If the type enum is only the built-ins, spawn `general-purpose` with `model=luna`.
 - Believe the child's self-report. It must say `gpt-5.6-luna`.
 - Login is `codex login` on a human TTY. MCP never runs it.

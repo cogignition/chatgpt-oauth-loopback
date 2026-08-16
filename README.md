@@ -95,6 +95,25 @@ openai-auth = "luna"
 
 Restart Grok after adding `[model.luna]`. Confirm `grok models` lists `luna`. In `/mcps`, expect **plugin** `chatgpt-oauth`, not a Local duplicate.
 
+## Main-window identity (luna still says Grok)
+
+Picking `luna` in the model picker **does** send turns to `gpt-5.6-luna` on `:8743`. Session metadata will show `current_model_id = gpt-5.6-luna` and the footer `16K / 272K`. That is not the same as the **system prompt**.
+
+Grok always starts the prompt with `You are Grok 4.6 released by xAI.` There is **no** `[model.luna]` field for a per-model system prompt. `[agent]` is global (every model), not per catalog slug.
+
+So a main window on luna will self-report Grok unless that clause is rewritten. Proof of routing is the session file / `:8743` POST log, not the model's answer. The adapter rewrites only the identity sentence; tool policy stays.
+
+Ways to change what it believes:
+
+| How | Effect |
+|---|---|
+| Adapter rewrite (this repo) | Replaces incoming `You are Grok 4.6…` in system/developer text. Leaves the rest of the Grok harness prompt. |
+| `grok --model luna --rules 'You are gpt-5.6-luna via ChatGPT OAuth…'` | Appends to Grok's prompt (`<human_rules>`). Launch-time only. |
+| `grok --model luna --system-prompt-override '…'` | Replaces the entire Grok prompt. Drops tool policy. Do not use for a normal TUI. |
+| Plugin agent `openai-auth` | Identity for **spawned children**, not the main window. |
+
+This checkout's `AGENTS.md` talks about luna as a *child route*. That text is loaded into a luna **main** session too, which is why the herdr tab labeled `luna` argued it was Grok.
+
 ## Set up a subagent
 
 If this TUI's spawn `model` enum does not list `luna`, route by **agent type** (`openai-auth`) or pass `model=luna` after a restart.

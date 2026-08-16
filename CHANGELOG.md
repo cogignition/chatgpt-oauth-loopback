@@ -9,6 +9,15 @@ Park notes under `[Unreleased]`. A release requires `## [X.Y.Z] - YYYY-MM-DD` th
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-08-16
+
+### Added
+
+- Rewrite incoming `You are Grok …` in system/developer text; leave the rest of the harness prompt
+- README: Grok cannot set a per-model system prompt; routing vs identity
+
+
+
 ## [0.4.1] - 2026-08-16
 
 ### Fixed

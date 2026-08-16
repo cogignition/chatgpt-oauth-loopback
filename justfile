@@ -46,8 +46,7 @@ stop:
 self-test:
     {{ python }} loopback.py --self-test
 
-# Interactive ChatGPT OAuth. Choose ChatGPT, not an API key.
-# MCP will not run this (stdio is not a TTY). You run it here.
+# Interactive `codex login` (ChatGPT, not API key). Your TTY, not MCP.
 login:
     #!/usr/bin/env bash
     set -euo pipefail

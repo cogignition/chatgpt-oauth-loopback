@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tags we push must be v + the manifest version. No leftover 0.3.0 (HUB-179).
+# Tags we push must be v + the manifest version.
 set -euo pipefail
 root="$(git rev-parse --show-toplevel)"
 python3 "${root}/scripts/check-version"

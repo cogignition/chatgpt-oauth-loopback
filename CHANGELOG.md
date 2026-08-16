@@ -9,6 +9,12 @@ Park notes under `[Unreleased]`. A release requires `## [X.Y.Z] - YYYY-MM-DD` th
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-08-16
+
+### Changed
+
+- Public docs drop internal tracker links and ticket IDs
+
 ## [0.4.2] - 2026-08-16
 
 ### Added

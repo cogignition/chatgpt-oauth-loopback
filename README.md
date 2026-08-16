@@ -6,8 +6,6 @@ The parent stays Grok. The child is `gpt-5.6-luna`, authenticated as a ChatGPT s
 
 If ChatGPT OAuth is missing, this project **tells you to log in**. It will not steal the MCP stdio pipe to run `codex login`. You run that in a terminal: `codex login`.
 
-Tracked as [HUB-186](https://linear.app/hublar/issue/HUB-186/align-chatgpt-oauth-loopback-with-grok-plugin-standards-praxis).
-
 ## Why this exists
 
 Most “multi-model Grok” setups drop a platform key in `config.toml` and point at `api.openai.com`. That is a second bill and a second identity.
@@ -131,7 +129,7 @@ Fast / researcher / implementer are **examples** (`examples/agents/`). Copy into
 
 The child must report `gpt-5.6-luna`. If it reports `grok-4.x`, the route failed (live config missing `[model.luna]`, or this TUI session started before that block existed).
 
-`agents_md: false` on the shipped name-test agent. A researcher can set `agents_md: true`. Do not load a rulebook that says “work stops when Linear is Done” into a three-line identity test.
+`agents_md: false` on the shipped name-test agent. A researcher can set `agents_md: true`. Do not load an org rulebook into a three-line identity test.
 
 High-effort luna keeps going unless the prompt says: one final message, then stop. The adapter must fill empty `response.completed.output` or Grok retries `no_visible_content`.
 

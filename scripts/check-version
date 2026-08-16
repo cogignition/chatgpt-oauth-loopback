@@ -2,7 +2,7 @@
 """One semver home. Mirrors must match. Tags are vMAJOR.MINOR.PATCH.
 
 Home: .grok-plugin/plugin.json  version
-A file version with no matching tag is unreleased, not a release (HUB-179).
+A file version with no matching tag is unreleased, not a release.
 CHANGELOG.md must exist. A release requires ## [X.Y.Z] - YYYY-MM-DD.
 """
 from __future__ import annotations

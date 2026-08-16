@@ -225,7 +225,7 @@ TERMINAL_TYPES = frozenset(
 
 
 class OutputCollector:
-    """Codex store:false leaves response.completed.output empty (HUB-171)."""
+    """Codex store:false leaves response.completed.output empty."""
 
     def __init__(self) -> None:
         self._items: dict[int, dict] = {}
@@ -913,7 +913,7 @@ def mcp_handle(message: dict, port: int) -> dict | None:
             {
                 "protocolVersion": version,
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "openai-loopback", "version": "0.4.2"},
+                "serverInfo": {"name": "openai-loopback", "version": "0.4.3"},
             },
         )
     if method == "notifications/initialized" or method.startswith("notifications/"):

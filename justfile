@@ -19,11 +19,11 @@ health:
     curl -sS -m 2 http://127.0.0.1:8743/health
     @echo
 
-# Detach the HTTP singleton (127.0.0.1:8743). Not a Grok TUI command.
+# Lights on: one HTTP listener. Shared by every Grok session. Zero holders.
 daemon:
     {{ python }} loopback.py --daemon
 
-# Stop our listener on :8743.
+# Lights out now. Kills our listener even if Grok sessions still hold.
 stop:
     #!/usr/bin/env bash
     set -euo pipefail

@@ -200,14 +200,44 @@ Grok’s custom-model client uses the Responses API (`stream: true`, `store: fal
 
 Stdio MCP (Grok 1.0.4 / rmcp) is **one JSON line per message**. Replies match the request framing. `/mcps` **r** refreshes after a `config.toml` edit. It does not resurrect a plugin row marked `[unavailable]`. Put the server under **Local** via `[mcp_servers.chatgpt-oauth]`.
 
-`:8743` is a host singleton. Two Grok sessions share it. Concurrent POSTs are fine. Last MCP holder out may tear the listener down; `just daemon` brings it back without a holder.
+## Many Grok sessions, one light
+
+`[model.openai-codex] base_url` is one URL. The host has **one** `:8743`. You can run as many Grok TUIs as you want. They do not each get a port.
+
+```
+  Grok session A ──MCP──┐
+                        ├──►  127.0.0.1:8743  (one loopback.py)
+  Grok session B ──MCP──┘         │
+                                  ▼
+                         luna POSTs multiplex
+```
+
+**Holders.** Each live MCP process is a holder (pid in `~/.cache/sysop/codex-loopback/holders.json`). `GET /health` reports `holders`.
+
+| Event | Lights |
+|---|---|
+| `just daemon` | On. Zero holders. Stays up so you can spawn before any TUI attaches. |
+| First Grok session MCP starts | Holder = 1. Attaches if already up; starts the listener if not. |
+| Second session | Holder = 2. Does **not** reclaim a healthy listener. |
+| Concurrent luna children | Fine. `ThreadingHTTPServer`. |
+| One session quits | Holder drops. Lights stay on if anyone remains. |
+| Last session quits | Holder = 0. **Lights out.** The HTTP process is killed. |
+| `just stop` | Lights out now, even if holders remain. |
+| `just daemon` after that | Lights on again, zero holders. |
+
+Do not give each session its own port. Grok’s model config cannot follow it.
+
+Token refresh to `~/.codex/auth.json` is locked so two sessions do not clobber the file.
+
+If you open Grok, spawn luna, quit Grok, then `/health` is refused: that is last-out, not a crash. `just daemon` or the next session’s MCP turns the light back on.
 
 ## Troubleshooting
 
 | Symptom | What to do |
 |---|---|
 | `just check` exit 1 | `just login`, choose ChatGPT |
-| `/health` connection refused | `just daemon` |
+| `/health` connection refused | Last session quit (lights out) or never started. `just daemon` |
+| Two TUIs, one dies, children fail | You gave them different ports. Don’t. One `:8743`. |
 | `/mcps` plugin row `[unavailable]` | Ignore the plugin group. Use Local `chatgpt-oauth` after a config `r` |
 | `r` does nothing | `r` is a config refresh. Edit `config.toml` or `Space` to toggle enable |
 | Child reports then Grok retries | You are not running this adapter’s completed.output fill |

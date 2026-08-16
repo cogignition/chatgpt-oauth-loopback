@@ -2,9 +2,12 @@
 """Grok stdio MCP for ChatGPT OAuth loopback. Does not bind :8743."""
 from __future__ import annotations
 
+import fcntl
 import json
 import os
+import signal
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -45,6 +48,133 @@ def local_auth() -> str:
     if isinstance(access, str) and access and isinstance(refresh, str) and refresh:
         return "chatgpt"
     return "missing"
+
+
+def cache_dir() -> Path:
+    base = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
+    dest = base / "sysop" / "codex-loopback"
+    dest.mkdir(parents=True, exist_ok=True)
+    return dest
+
+
+def holders_path() -> Path:
+    return cache_dir() / "holders.json"
+
+
+def state_lock_path() -> Path:
+    return cache_dir() / "state.lock"
+
+
+def pidfile_path() -> Path:
+    return cache_dir() / "server.pid"
+
+
+def pid_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def load_holders() -> dict:
+    path = holders_path()
+    if not path.is_file():
+        return {"holders": [], "http_pid": None}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"holders": [], "http_pid": None}
+    if not isinstance(data, dict):
+        return {"holders": [], "http_pid": None}
+    raw = data.get("holders")
+    holders = []
+    if isinstance(raw, list):
+        for item in raw:
+            try:
+                holders.append(int(item))
+            except (TypeError, ValueError):
+                continue
+    http_pid = data.get("http_pid")
+    try:
+        http_pid_i = int(http_pid) if http_pid is not None else None
+    except (TypeError, ValueError):
+        http_pid_i = None
+    return {"holders": holders, "http_pid": http_pid_i}
+
+
+def prune_holders(state: dict) -> dict:
+    live = [pid for pid in state.get("holders", []) if pid_alive(pid)]
+    http_pid = state.get("http_pid")
+    if isinstance(http_pid, int) and not pid_alive(http_pid):
+        http_pid = None
+    return {"holders": live, "http_pid": http_pid}
+
+
+def attach_holder() -> None:
+    """After handshake. Last holder out kills :8743."""
+    try:
+        lock = open(state_lock_path(), "a+", encoding="utf-8")
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except (OSError, BlockingIOError) as exc:
+        log(f"holder skip {exc}")
+        return
+    try:
+        state = prune_holders(load_holders())
+        me = os.getpid()
+        if me not in state["holders"]:
+            state["holders"].append(me)
+        holders_path().write_text(json.dumps(state) + "\n", encoding="utf-8")
+        log(f"holder={me} n={len(state['holders'])}")
+    finally:
+        lock.close()
+
+
+def release_holder() -> None:
+    try:
+        lock = open(state_lock_path(), "a+", encoding="utf-8")
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+    except OSError as exc:
+        log(f"release skip {exc}")
+        return
+    try:
+        state = prune_holders(load_holders())
+        me = os.getpid()
+        state["holders"] = [pid for pid in state["holders"] if pid != me]
+        holders_path().write_text(json.dumps(state) + "\n", encoding="utf-8")
+        log(f"holder drop n={len(state['holders'])}")
+        if state["holders"]:
+            return
+        http_pid = state.get("http_pid")
+        if http_pid is None:
+            try:
+                http_pid = int(pidfile_path().read_text().strip())
+            except (OSError, ValueError):
+                http_pid = None
+        if isinstance(http_pid, int) and pid_alive(http_pid):
+            log(f"lights out pid={http_pid}")
+            try:
+                os.kill(http_pid, signal.SIGTERM)
+            except OSError:
+                pass
+            deadline = time.time() + 2.0
+            while time.time() < deadline and pid_alive(http_pid):
+                time.sleep(0.05)
+            if pid_alive(http_pid):
+                try:
+                    os.kill(http_pid, signal.SIGKILL)
+                except OSError:
+                    pass
+        state["http_pid"] = None
+        holders_path().write_text(json.dumps(state) + "\n", encoding="utf-8")
+        try:
+            pidfile_path().unlink()
+        except OSError:
+            pass
+    finally:
+        lock.close()
 
 
 def with_login(payload: dict) -> dict:
@@ -201,17 +331,35 @@ def main() -> int:
     auth = local_auth()
     if auth != "chatgpt":
         log(LOGIN.replace("\n", " | "))
-    while True:
-        msg, framing = read_msg()
-        if msg is None:
-            log("eof")
-            return 0
-        method = msg.get("method")
-        log(f"recv {method} frame={framing}")
-        reply = handle(msg)
-        if reply is not None:
-            write_msg(reply, framing)
-            log(f"sent {method} frame={framing}")
+    attached = False
+
+    def cleanup(_signum: int | None = None, _frame: object = None) -> None:
+        if attached:
+            release_holder()
+        if _signum is not None:
+            raise SystemExit(0)
+
+    signal.signal(signal.SIGTERM, cleanup)
+    signal.signal(signal.SIGINT, cleanup)
+    try:
+        while True:
+            msg, framing = read_msg()
+            if msg is None:
+                log("eof")
+                break
+            method = msg.get("method")
+            log(f"recv {method} frame={framing}")
+            reply = handle(msg)
+            if reply is not None:
+                write_msg(reply, framing)
+                log(f"sent {method} frame={framing}")
+            if method == "notifications/initialized" and not attached:
+                attach_holder()
+                attached = True
+    finally:
+        if attached:
+            release_holder()
+    return 0
 
 
 if __name__ == "__main__":

@@ -337,6 +337,10 @@ def transform(body: dict) -> dict:
     out.pop("service_tier", None)
     out.pop("reasoning_effort", None)
     out.pop("effort", None)
+    # ChatGPT Codex rejects these. Grok sends them from max_completion_tokens.
+    out.pop("max_output_tokens", None)
+    out.pop("max_completion_tokens", None)
+    out.pop("max_tokens", None)
     reasoning = out.get("reasoning")
     if not isinstance(reasoning, dict):
         reasoning = {}
@@ -885,7 +889,7 @@ def mcp_handle(message: dict, port: int) -> dict | None:
             {
                 "protocolVersion": version,
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "openai-loopback", "version": "0.4.0"},
+                "serverInfo": {"name": "openai-loopback", "version": "0.4.1"},
             },
         )
     if method == "notifications/initialized" or method.startswith("notifications/"):
@@ -1081,6 +1085,10 @@ def run_self_test() -> int:
     from_top = transform({"input": [], "reasoning_effort": "xhigh"})
     if from_top["reasoning"]["effort"] != "xhigh":
         die(f"self-test: top-level reasoning_effort ignored, got {from_top['reasoning']!r}")
+    stripped = transform({"input": [], "max_output_tokens": 128000, "max_completion_tokens": 128000})
+    for key in ("max_output_tokens", "max_completion_tokens", "max_tokens"):
+        if key in stripped:
+            die(f"self-test: transform must drop {key}")
 
     print("self-test: ok")
     return 0

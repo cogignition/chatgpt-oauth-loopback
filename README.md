@@ -78,10 +78,10 @@ base_url = "http://127.0.0.1:8743/v1"
 api_backend = "responses"
 api_key = "chatgpt-oauth"
 context_window = 272000
-max_completion_tokens = 128000
 # Official model spec is 1.05M context / 128k output. ChatGPT OAuth
 # (Codex backend) advertises 272k and 2x-prices input above that.
-# Grok uses context_window for auto-compaction; 272k is the cliff.
+# Do not set max_completion_tokens — Grok sends max_output_tokens and
+# the Codex backend returns 400 Unsupported parameter.
 
 [plugins]
 enabled = ["chatgpt-oauth"]

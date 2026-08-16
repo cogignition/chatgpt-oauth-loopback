@@ -9,6 +9,16 @@ Park notes under `[Unreleased]`. A release requires `## [X.Y.Z] - YYYY-MM-DD` th
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-08-16
+
+### Fixed
+
+- Drop `max_output_tokens` / `max_completion_tokens` (Codex 400 Unsupported parameter)
+
+### Changed
+
+- Do not set `max_completion_tokens` on `[model.luna]`; keep `context_window = 272000`
+
 ## [0.4.0] - 2026-08-16
 
 ### Changed

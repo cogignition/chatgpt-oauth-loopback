@@ -359,7 +359,8 @@ def pid_alive(pid: int) -> bool:
 def is_ours(pid: int) -> bool:
     if pid <= 0 or pid == os.getpid():
         return False
-    return "codex_loopback.py" in pid_command(pid)
+    cmd = pid_command(pid)
+    return "codex_loopback.py" in cmd or "loopback.py --http" in cmd or "loopback.py --port" in cmd
 
 
 def pids_on_port(port: int) -> list[int]:
